@@ -10,12 +10,10 @@ namespace ZombieParty.Controllers
     public class ZombieController : Controller
     {
         private ZombiePartyDbContext context;
-        private readonly IWebHostEnvironment webHostEnvironment;
 
-        public ZombieController(ZombiePartyDbContext context, IWebHostEnvironment webHostEnvironment)
+        public ZombieController(ZombiePartyDbContext context)
         {
             this.context = context;
-            this.webHostEnvironment = webHostEnvironment;
         }
 
         public async Task<IActionResult> Index()
@@ -45,7 +43,7 @@ namespace ZombieParty.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Upsert(Zombie zombie)
+        public async Task<IActionResult> Upsert([FromServices] IImageFileManager imageFileManager, Zombie zombie)
         {
             if (ModelState.IsValid)
             {
@@ -53,37 +51,7 @@ namespace ZombieParty.Controllers
                 bool edit = zombie.Id != 0;
                 string? oldImagePath = zombie.Image;
 
-                // Début du code qui doit être déplacer dans ImageFileManager
-                var files = form.Files; //nouvelle image récupérée
-
-                if (files.Count > 0)
-                {
-                    // Il faut utiliser la DI pour obtenir webHostEnvironment
-                    string webRootPath = webHostEnvironment.WebRootPath;
-                    string fileName = Guid.NewGuid().ToString();// Nom fichier généré, unique
-                    var uploads = webRootPath + AppConstants.ImagePath;// chemin pour les image
-                    var extension = Path.GetExtension(files[0].FileName); // extraire l'extension du fichier
-
-                    // Créer un cannal pour transférer le fichier 
-                    using (var filesStreams = new FileStream(uploads + fileName + extension, FileMode.Create))
-                    {
-                        files[0].CopyTo(filesStreams);
-                    }
-
-                    // Je supprime l'ancien fichier si c'est une édition
-                    if (edit && !string.IsNullOrWhiteSpace(oldImagePath))
-                    {
-                        try
-                        {
-                            System.IO.File.Delete(uploads + oldImagePath);
-                        }
-                        catch { }
-                    }
-
-                    // Il faudra retourner la valeur dans notre nouvelle fonction
-                    zombie.Image = fileName + extension;
-                }
-                // Fin du code qui doit être déplacer dans ImageFileManager
+                zombie.Image = imageFileManager.UploadImage(form, edit, oldImagePath);
 
                 if (zombie.Id == 0)
                     this.context.Zombie.Add(zombie);
